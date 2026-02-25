@@ -25,11 +25,11 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
-    const database = client.db("techBlogsDB");
+    const database = client.db("techBlogs");
     const userCollection = database.collection("users");
     const blogsCollection = database.collection("blogs");
 
-    // user api
+    // ********* user api
     // post user
     app.post("/users", async (req, res) => {
       try {
@@ -100,6 +100,97 @@ async function run() {
       } catch (error) {
         console.error("Error deleting user:", error);
         res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    // *************** blogs api */
+    app.get("/blogs", async (req, res) => {
+      try {
+        const result = await blogsCollection.find().toArray();
+        res.send(result);
+      } catch (error) {
+        console.error("Error fetching blogs:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    app.post("/blogs", async (req, res) => {
+      try {
+        const blog = { ...req.body, comments: [], likes: 0 };
+
+        const result = await blogsCollection.insertOne(blog);
+        res.status(200).send(result);
+      } catch (error) {
+        console.error("Error inserting blog:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    app.get("/blogs/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await blogsCollection.findOne({ _id: new ObjectId(id) });
+        res.status(200).send(result);
+      } catch (error) {
+        console.error("Error fetching blog:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    app.post("/blogs/:id/comments", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const comment = { ...req.body };
+        const result = await blogsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $push: { comments: comment } },
+        );
+        res.status(200).send(comment);
+      } catch (error) {
+        console.error("Error adding comment:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    app.post("/blogs/:id/like", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { email } = req.body;
+
+        const blog = await blogsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        if (!blog) {
+          return res.status(404).json({ message: "Blog not found" });
+        }
+
+        // Prevent double like
+        if (blog.likedUsers?.includes(email)) {
+          return res.status(400).json({
+            message: "Already liked",
+          });
+        }
+
+        // Update blog
+        await blogsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          {
+            $addToSet: { likedUsers: email },
+            $inc: { likes: 1 },
+          },
+        );
+
+        // ✅ Fetch UPDATED blog
+        const updatedBlog = await blogsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+
+        // ✅ Send updated blog back
+        res.status(200).json(updatedBlog);
+      } catch (error) {
+        console.error("Like error:", error);
+        res.status(500).json({ message: "Server error" });
       }
     });
 
