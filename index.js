@@ -52,6 +52,21 @@ const verifyToken = (req, res, next) => {
   });
 };
 
+const verifyAdmin = async (req, res, next) => {
+  try {
+    const email = req.decoded.email;
+    const user = await userCollection.findOne({ email });
+
+    if (!user || user.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    next();
+  } catch (error) {
+    console.error("Admin verification error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -64,16 +79,29 @@ async function run() {
     const savedBlogsCollection = database.collection("savedBlogs");
 
     app.post("/jwt", async (req, res) => {
-      const email = req.body;
+      try {
+        const { email } = req.body;
+        if (!email) {
+          return res.status(400).json({ message: "Email is required" });
+        }
+        const user = await userCollection.findOne({ email });
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        const token = jwt.sign(
+          {
+            email: user.email,
+            role: user.role || "user",
+          },
+          process.env.SECRET_KEY,
+          { expiresIn: "7d" },
+        );
 
-      if (!email) {
-        return res.status(400).json({ message: "Email is required" });
+        res.status(200).json({ token });
+      } catch (error) {
+        console.error("JWT Error:", error);
+        res.status(500).json({ message: "Internal server error" });
       }
-
-      const token = jwt.sign({ email }, process.env.SECRET_KEY, {
-        expiresIn: "7d",
-      });
-      res.status(200).json({ token });
     });
 
     // ********* user api
@@ -89,6 +117,7 @@ async function run() {
           email: user.email,
         });
         if (!existingUser) {
+          user.role = "user";
           const result = await userCollection.insertOne(user);
           return res
             .status(200)
@@ -323,7 +352,7 @@ async function run() {
       }
     });
 
-    app.delete("/blogs/:id", async (req, res) => {
+    app.delete("/blogs/:id", verifyToken, verifyAdmin, async (req, res) => {
       try {
         const id = req.params.id;
         const result = await blogsCollection.deleteOne({
@@ -405,6 +434,12 @@ async function run() {
         console.error("Error fetching saved blogs:", error);
         res.status(500).json({ message: "Error fetching saved blogs" });
       }
+    });
+
+    // admin route to get all users
+    app.get("/admin/users", verifyToken, verifyAdmin, async (req, res) => {
+      const users = await userCollection.find().toArray();
+      res.send(users);
     });
 
     // Send a ping to confirm a successful connection
