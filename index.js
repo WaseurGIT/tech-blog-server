@@ -47,7 +47,7 @@ const verifyToken = (req, res, next) => {
     if (err) {
       return res.status(403).json({ message: "Forbidden" });
     }
-    req.decoded = decoded;
+    req.user = decoded;
     next();
   });
 };
@@ -413,26 +413,63 @@ async function run() {
       }
     });
 
+    // app.get("/savedBlogs/:email", verifyToken, async (req, res) => {
+    //   try {
+    //     const email = req.params.email;
+
+    //     // Step 1: Find saved blog IDs
+    //     const saved = await savedBlogsCollection
+    //       .find({ userEmail: email })
+    //       .toArray();
+
+    //     const blogIds = saved.map((item) => new ObjectId(item.blogId));
+
+    //     // Step 2: Get full blog details
+    //     const blogs = await blogsCollection
+    //       .find({ _id: { $in: blogIds } })
+    //       .toArray();
+
+    //     res.status(200).json(blogs);
+    //   } catch (error) {
+    //     console.error("Error fetching saved blogs:", error);
+    //     res.status(500).json({ message: "Error fetching saved blogs" });
+    //   }
+    // });
+
     app.get("/savedBlogs/:email", verifyToken, async (req, res) => {
+      const email = req.params.email;
+
+      const saved = await savedBlogsCollection
+        .find({ userEmail: email })
+        .toArray();
+
+      const blogIds = saved.map((item) => new ObjectId(item.blogId));
+
+      const blogs = await blogsCollection
+        .find({ _id: { $in: blogIds } })
+        .toArray();
+
+      res.send(blogs);
+    });
+
+    app.delete("/savedBlogs/:blogId", verifyToken, async (req, res) => {
       try {
-        const email = req.params.email;
+        const blogId = req.params.blogId;
+        const userEmail = req.user.email; // from verifyToken
 
-        // Step 1: Find saved blog IDs
-        const saved = await savedBlogsCollection
-          .find({ userEmail: email })
-          .toArray();
+        const result = await savedBlogsCollection.deleteOne({
+          userEmail,
+          blogId,
+        });
 
-        const blogIds = saved.map((item) => new ObjectId(item.blogId));
+        if (result.deletedCount === 0) {
+          return res.status(404).json({ message: "Saved blog not found" });
+        }
 
-        // Step 2: Get full blog details
-        const blogs = await blogsCollection
-          .find({ _id: { $in: blogIds } })
-          .toArray();
-
-        res.status(200).json(blogs);
+        res.status(200).json({ message: "Saved blog removed successfully" });
       } catch (error) {
-        console.error("Error fetching saved blogs:", error);
-        res.status(500).json({ message: "Error fetching saved blogs" });
+        console.error("Error removing saved blog:", error);
+        res.status(500).json({ message: "Internal server error" });
       }
     });
 
