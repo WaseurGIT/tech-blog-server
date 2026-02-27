@@ -4,6 +4,7 @@ const app = express();
 const dotenv = require("dotenv");
 const multer = require("multer");
 const path = require("path");
+const jwt = require("jsonwebtoken");
 dotenv.config();
 const port = process.env.PORT || 5000;
 
@@ -34,6 +35,23 @@ const client = new MongoClient(uri, {
   },
 });
 
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+    if (err) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    req.decoded = decoded;
+    next();
+  });
+};
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -44,6 +62,19 @@ async function run() {
     const blogsCollection = database.collection("blogs");
     const userDataCollection = database.collection("userData");
     const savedBlogsCollection = database.collection("savedBlogs");
+
+    app.post("/jwt", async (req, res) => {
+      const email = req.body;
+
+      if (!email) {
+        return res.status(400).json({ message: "Email is required" });
+      }
+
+      const token = jwt.sign({ email }, process.env.SECRET_KEY, {
+        expiresIn: "7d",
+      });
+      res.status(200).json({ token });
+    });
 
     // ********* user api
     // post user
@@ -192,6 +223,7 @@ async function run() {
 
     app.post(
       "/blogs",
+      verifyToken,
       upload.fields([
         { name: "imageOne", maxCount: 1 },
         { name: "imageTwo", maxCount: 1 },
@@ -309,21 +341,19 @@ async function run() {
     });
 
     app.get("/blogs/user/:email", async (req, res) => {
-  try {
-    const email = req.params.email;
+      try {
+        const email = req.params.email;
 
-    const blogs = await blogsCollection
-      .find({ email: email })
-      .toArray();
+        const blogs = await blogsCollection.find({ email: email }).toArray();
 
-    res.status(200).json(blogs);
-  } catch (error) {
-    console.error("Error fetching user blogs:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+        res.status(200).json(blogs);
+      } catch (error) {
+        console.error("Error fetching user blogs:", error);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
 
-    app.post("/savedBlogs", async (req, res) => {
+    app.post("/savedBlogs", verifyToken, async (req, res) => {
       try {
         const { userEmail, blogId } = req.body;
 
@@ -354,7 +384,7 @@ async function run() {
       }
     });
 
-    app.get("/savedBlogs/:email", async (req, res) => {
+    app.get("/savedBlogs/:email", verifyToken, async (req, res) => {
       try {
         const email = req.params.email;
 
