@@ -2,11 +2,25 @@ const express = require("express");
 const cors = require("cors");
 const app = express();
 const dotenv = require("dotenv");
+const multer = require("multer");
+const path = require("path");
 dotenv.config();
 const port = process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
+app.use("/uploads", express.static("uploads"));
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({ storage });
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.febqytm.mongodb.net/?appName=Cluster0`;
@@ -28,6 +42,7 @@ async function run() {
     const database = client.db("techBlogs");
     const userCollection = database.collection("users");
     const blogsCollection = database.collection("blogs");
+    const userDataCollection = database.collection("userData");
 
     // ********* user api
     // post user
@@ -99,6 +114,66 @@ async function run() {
         }
       } catch (error) {
         console.error("Error deleting user:", error);
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    // *********** user data api
+    // post api
+    app.put(
+      "/userData/:email",
+      upload.fields([
+        { name: "coverImage", maxCount: 1 },
+        { name: "profilePicture", maxCount: 1 },
+      ]),
+      async (req, res) => {
+        try {
+          const email = req.params.email;
+
+          let coverImage = null;
+          let profilePicture = null;
+
+          if (req.files && req.files.coverImage) {
+            coverImage = req.files.coverImage[0].filename;
+          }
+
+          if (req.files && req.files.profilePicture) {
+            profilePicture = req.files.profilePicture[0].filename;
+          }
+
+          const updatedData = {
+            email,
+            name: req.body.name,
+            profession: req.body.profession,
+            institute: req.body.institute,
+            bio: req.body.bio,
+          };
+
+          if (coverImage) updatedData.coverImage = coverImage;
+          if (profilePicture) updatedData.profilePicture = profilePicture;
+
+          const result = await userDataCollection.updateOne(
+            { email },
+            { $set: updatedData },
+            { upsert: true },
+          );
+
+          res.send(result);
+        } catch (error) {
+          console.error("ERROR:", error);
+          res.status(500).send({ message: "Something went wrong" });
+        }
+      },
+    );
+
+    // get api
+    app.get("/userData/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+        const result = await userDataCollection.findOne({ email });
+        res.status(200).send(result);
+      } catch (error) {
+        console.error("Error fetching user data:", error);
         res.status(500).send({ message: "Internal server error" });
       }
     });
