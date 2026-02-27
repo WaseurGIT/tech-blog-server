@@ -43,6 +43,7 @@ async function run() {
     const userCollection = database.collection("users");
     const blogsCollection = database.collection("blogs");
     const userDataCollection = database.collection("userData");
+    const savedBlogsCollection = database.collection("savedBlogs");
 
     // ********* user api
     // post user
@@ -287,6 +288,92 @@ async function run() {
       } catch (error) {
         console.error("Like error:", error);
         res.status(500).json({ message: "Server error" });
+      }
+    });
+
+    app.delete("/blogs/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const result = await blogsCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        if (result.deletedCount === 0) {
+          res.status(404).json({ message: "Blog not found" });
+        } else {
+          res.status(200).json({ message: "Blog deleted successfully" });
+        }
+      } catch (error) {
+        console.error("Error deleting blog:", error);
+        res.status(500).json({ message: "Server error" });
+      }
+    });
+
+    app.get("/blogs/user/:email", async (req, res) => {
+  try {
+    const email = req.params.email;
+
+    const blogs = await blogsCollection
+      .find({ email: email })
+      .toArray();
+
+    res.status(200).json(blogs);
+  } catch (error) {
+    console.error("Error fetching user blogs:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+    app.post("/savedBlogs", async (req, res) => {
+      try {
+        const { userEmail, blogId } = req.body;
+
+        if (!userEmail || !blogId) {
+          return res.status(400).json({ message: "Missing data" });
+        }
+
+        // 🔎 Check if already saved
+        const existing = await savedBlogsCollection.findOne({
+          userEmail,
+          blogId,
+        });
+
+        if (existing) {
+          return res.status(409).json({ message: "Blog already saved" });
+        }
+
+        const result = await savedBlogsCollection.insertOne({
+          userEmail,
+          blogId,
+          savedAt: new Date(),
+        });
+
+        res.status(201).json(result);
+      } catch (error) {
+        console.error("Error saving blog:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    });
+
+    app.get("/savedBlogs/:email", async (req, res) => {
+      try {
+        const email = req.params.email;
+
+        // Step 1: Find saved blog IDs
+        const saved = await savedBlogsCollection
+          .find({ userEmail: email })
+          .toArray();
+
+        const blogIds = saved.map((item) => new ObjectId(item.blogId));
+
+        // Step 2: Get full blog details
+        const blogs = await blogsCollection
+          .find({ _id: { $in: blogIds } })
+          .toArray();
+
+        res.status(200).json(blogs);
+      } catch (error) {
+        console.error("Error fetching saved blogs:", error);
+        res.status(500).json({ message: "Error fetching saved blogs" });
       }
     });
 
