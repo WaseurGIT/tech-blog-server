@@ -189,17 +189,38 @@ async function run() {
       }
     });
 
-    app.post("/blogs", async (req, res) => {
-      try {
-        const blog = { ...req.body, comments: [], likes: 0 };
+    app.post(
+      "/blogs",
+      upload.fields([
+        { name: "imageOne", maxCount: 1 },
+        { name: "imageTwo", maxCount: 1 },
+      ]),
+      async (req, res) => {
+        try {
+          const blog = {
+            author: req.body.author,
+            authorImage: req.body.authorImage,
+            email: req.body.email,
+            publishedDate: req.body.publishedDate,
+            title: req.body.title,
+            category: req.body.category,
+            readTime: req.body.readTime,
+            content: req.body.content,
+            imageOne: req.files?.imageOne?.[0]?.filename || null,
+            imageTwo: req.files?.imageTwo?.[0]?.filename || null,
+            comments: [],
+            likes: 0,
+          };
 
-        const result = await blogsCollection.insertOne(blog);
-        res.status(200).send(result);
-      } catch (error) {
-        console.error("Error inserting blog:", error);
-        res.status(500).send({ message: "Internal server error" });
-      }
-    });
+          const result = await blogsCollection.insertOne(blog);
+
+          res.status(201).json(result);
+        } catch (error) {
+          console.error("Error inserting blog:", error);
+          res.status(500).json({ message: "Internal server error" });
+        }
+      },
+    );
 
     app.get("/blogs/:id", async (req, res) => {
       try {
