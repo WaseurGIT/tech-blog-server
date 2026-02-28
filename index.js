@@ -83,6 +83,9 @@ async function run() {
     const userDataCollection = database.collection("userData");
     const savedBlogsCollection = database.collection("savedBlogs");
 
+    console.log("DB_USER:", process.env.DB_USER);
+    console.log("DB_PASS:", process.env.DB_PASS);
+
     app.post("/jwt", async (req, res) => {
       try {
         const { email } = req.body;
@@ -260,7 +263,7 @@ async function run() {
       try {
         const blog = {
           author: req.body.author,
-          authorImage: user?.photoURL,
+          authorImage: req.user?.photoURL,
           email: req.body.email,
           publishedDate: req.body.publishedDate,
           title: req.body.title,
