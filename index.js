@@ -10,10 +10,7 @@ const port = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://tech-blogs-theta.vercel.app",
-    ],
+    origin: ["http://localhost:5173", "https://tech-blogs-theta.vercel.app"],
     credentials: true,
   }),
 );
@@ -187,10 +184,11 @@ async function run() {
       }
     });
 
-    // *********** user data api
+    // *********** user profile data api
     // post api
     app.put(
       "/userData/:email",
+      verifyToken,
       upload.fields([
         { name: "coverImage", maxCount: 1 },
         { name: "profilePicture", maxCount: 1 },
@@ -258,39 +256,30 @@ async function run() {
       }
     });
 
-    app.post(
-      "/blogs",
-      verifyToken,
-      upload.fields([
-        { name: "imageOne", maxCount: 1 },
-        { name: "imageTwo", maxCount: 1 },
-      ]),
-      async (req, res) => {
-        try {
-          const blog = {
-            author: req.body.author,
-            authorImage: req.body.authorImage,
-            email: req.body.email,
-            publishedDate: req.body.publishedDate,
-            title: req.body.title,
-            category: req.body.category,
-            readTime: req.body.readTime,
-            content: req.body.content,
-            imageOne: req.files?.imageOne?.[0]?.filename || null,
-            imageTwo: req.files?.imageTwo?.[0]?.filename || null,
-            comments: [],
-            likes: 0,
-          };
+    app.post("/blogs", verifyToken, async (req, res) => {
+      try {
+        const blog = {
+          author: req.body.author,
+          authorImage: user?.photoURL,
+          email: req.body.email,
+          publishedDate: req.body.publishedDate,
+          title: req.body.title,
+          category: req.body.category,
+          readTime: req.body.readTime,
+          content: req.body.content,
+          comments: [],
+          likes: 0,
+          likedUsers: [],
+        };
 
-          const result = await blogsCollection.insertOne(blog);
+        const result = await blogsCollection.insertOne(blog);
 
-          res.status(201).json(result);
-        } catch (error) {
-          console.error("Error inserting blog:", error);
-          res.status(500).json({ message: "Internal server error" });
-        }
-      },
-    );
+        res.status(201).json(result);
+      } catch (error) {
+        console.error("Error inserting blog:", error);
+        res.status(500).json({ message: "Internal server error" });
+      }
+    });
 
     app.get("/blogs/:id", async (req, res) => {
       try {
