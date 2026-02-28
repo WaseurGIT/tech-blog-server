@@ -12,7 +12,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://blogify-swart-omega.vercel.app",
+      "https://tech-blogs-theta.vercel.app",
     ],
     credentials: true,
   }),
