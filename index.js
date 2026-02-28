@@ -62,7 +62,7 @@ const verifyToken = (req, res, next) => {
 
 const verifyAdmin = async (req, res, next) => {
   try {
-    const email = req.decoded.email;
+    const email = req.user.email;
     const user = await userCollection.findOne({ email });
 
     if (!user || user.role !== "admin") {
