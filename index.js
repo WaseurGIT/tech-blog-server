@@ -10,7 +10,10 @@ const port = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://tech-blogs-rho.vercel.app"],
+    origin: [
+      "http://localhost:5173",
+      "https://blogify-swart-omega.vercel.app",
+    ],
     credentials: true,
   }),
 );
